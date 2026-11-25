@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0
 package node
 
+//TODO: Create tests for these packages
+
 import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
+
+	"github.com/zecheezeman/Stoffel/internal/cli"
 )
 
 type NodeID [32]byte
@@ -63,4 +68,26 @@ func NewNode(user string, ip string, port uint16) (Node, error) {
 	buf = append(buf, []byte(user)...)
 
 	return Node{user: user, ip: parsedIp, port: port, id: sha256.Sum256(buf)}, nil
+}
+
+func RunLocalNode(o cli.Opts) error {
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", o.ListenPort))
+	if err != nil {
+		return fmt.Errorf("could not start listening: %s", err)
+	}
+	fmt.Printf("started listening on port %d\n", o.ListenPort)
+
+	//TODO: Must create an infinite loop, where each connection is handled in a goroutine
+	conn, err := l.Accept()
+	if err != nil {
+		return fmt.Errorf("could not accept connection: %s", err)
+	}
+
+	b, err := io.ReadAll(conn)
+	if err != nil {
+		return fmt.Errorf("could not read from connection: %s", err)
+	}
+
+	fmt.Printf("message: %s", string(b))
+	return nil
 }

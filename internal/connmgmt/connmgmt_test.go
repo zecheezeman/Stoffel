@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zecheezeman/Stoffel/node"
+	"github.com/zecheezeman/Stoffel/internal/node"
 )
 
 func TestAddPrimary(t *testing.T) {

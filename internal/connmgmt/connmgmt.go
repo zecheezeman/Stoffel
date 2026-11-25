@@ -3,57 +3,73 @@ package connmgmt
 
 import (
 	"fmt"
+	"slices"
 
-	"github.com/zecheezeman/Stoffel/node"
+	"github.com/zecheezeman/Stoffel/internal/node"
 )
+
+// Connection represents the single link between the primary connection of a node and the node itself.
+type Connection struct {
+	// In case the 'primary' node is nil, it means that the local node is the primary link of it.
+	primary *node.Node
+	node    node.Node
+}
 
 // ConnectionManager is supposed to store all conections and views of the current node.
 // Must use `New` method to instantiate this struct.
-// The behaviour should be this: NodeID -> slice of Node, where the first element is the actual element.
-// Ex: conns[nid][0] == Node, where nid == Node.Id()
-// TODO: Find a smarter way to store connections, possibly without data duplication
+// To find a node takes O(n), which is not the best way but it is the safest way as of now.
 type ConnectionManager struct {
-	conns map[node.NodeID][]node.Node
+	conns []Connection
 }
 
 // New instantiates a new ConnectionManager with no previously allocalted capacity.
 func New() ConnectionManager {
 	return ConnectionManager{
 		// Leave without size as of now
-		conns: make(map[node.NodeID][]node.Node),
+		conns: make([]Connection, 0),
 	}
 }
 
 // AddPrimary stores a new primary connection.
 func (cm *ConnectionManager) AddPrimary(n node.Node) error {
-	if _, ok := cm.conns[n.Id()]; ok {
+	if _, err := cm.Get(n.Id()); err == nil {
 		return fmt.Errorf("node id already exists in connection manager: %x", n.Id())
 	}
-	cm.conns[n.Id()] = make([]node.Node, 0)
-	cm.conns[n.Id()] = append(cm.conns[n.Id()], n)
+
+	cm.conns = append(cm.conns, Connection{
+		primary: nil,
+		node:    n,
+	})
+
 	return nil
 }
 
 // AddNonPrimary stores a new connection that is not a primary connection.
 func (cm *ConnectionManager) AddNonPrimary(primId node.NodeID, n node.Node) error {
-	if _, ok := cm.conns[primId]; !ok {
+	var primConn node.Node
+	var err error
+
+	if primConn, err = cm.Get(primId); err != nil {
 		return fmt.Errorf("primary connection node id does not exist: %x", n.Id())
 	}
 
-	if _, ok := cm.conns[n.Id()]; ok {
+	if _, err := cm.Get(n.Id()); err == nil {
 		return fmt.Errorf("non-primary node id already exists in connection manager: %x", n.Id())
 	}
 
-	cm.conns[primId] = append(cm.conns[primId], n)
-	cm.conns[n.Id()] = make([]node.Node, 0)
-	cm.conns[n.Id()] = append(cm.conns[n.Id()], n)
+	cm.conns = append(cm.conns, Connection{
+		primary: &primConn,
+		node:    n,
+	})
 
 	return nil
 }
 
 func (cm *ConnectionManager) Get(nid node.NodeID) (node.Node, error) {
-	if n, ok := cm.conns[nid]; ok {
-		return n[0], nil
+	if idx := slices.IndexFunc(
+		cm.conns,
+		func(c Connection) bool { return c.node.Id() == nid }); idx != -1 {
+		return cm.conns[idx].node, nil
 	}
-	return node.Node{}, fmt.Errorf("could not find node with id: %x", nid)
+	return node.Node{}, fmt.Errorf("no node found with id: %x", nid)
 }
